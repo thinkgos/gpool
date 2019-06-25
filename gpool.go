@@ -160,14 +160,14 @@ func (this *Pool) submit(f TaskFunc, arg interface{}) error {
 		w.itm <- itm
 		return nil
 	}
-	this.mux.Unlock()
+
 	if int(atomic.LoadInt32(&this.running)) < this.Cap() {
+		this.mux.Unlock()
 		w = this.cache.Get().(*work)
 		go w.run(itm)
 		return nil
 	}
 
-	this.mux.Lock()
 	for {
 		this.cond.Wait()
 		if w = this.idle.Front(); w != nil {
