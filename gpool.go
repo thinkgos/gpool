@@ -8,18 +8,19 @@ import (
 	"time"
 )
 
-// default config
+// the default config parameter
 const (
 	DefaultCapacity    = 100000
 	DefaultIdleTImeout = 1 * time.Second
 )
 
+// ErrClosed indicate the pool has closed
 var ErrClosed = errors.New("pool has closed")
 
 // TaskFunc task function define
-type TaskFunc func(interface{})
+type TaskFunc func(arg interface{})
 
-// Config the pool config
+// Config the pool config parameter
 type Config struct {
 	Capacity    int
 	IdleTimeout time.Duration
@@ -38,16 +39,18 @@ type Pool struct {
 	cond    *sync.Cond
 	idle    *list
 	cache   *sync.Pool
+
+	panicFunc func()
 }
 
-// New a pool with the config
+// New a pool with the config if there is ,other use default config
 func New(c ...*Config) *Pool {
-	ctx, cancel := context.WithCancel(context.Background())
 	if len(c) == 0 {
 		c = append(c, &Config{Capacity: DefaultCapacity, IdleTimeout: DefaultIdleTImeout})
 	}
 
 	cfg := c[0]
+	ctx, cancel := context.WithCancel(context.Background())
 	p := &Pool{
 		cfg:    cfg,
 		ctx:    ctx,
@@ -93,12 +96,16 @@ func (this *Pool) cleanUp() {
 	}
 }
 
+func (this *Pool) SetPanicHandler(f func()) {
+	this.panicFunc = f
+}
+
 // Len returns the currently running goroutines
 func (this *Pool) Len() int {
 	return int(atomic.LoadInt32(&this.running))
 }
 
-// Idle return the goroutines has create but in idle
+// Idle return the goroutines has running but in idle(no task work)
 func (this *Pool) Idle() int {
 	this.mux.Lock()
 	cnt := this.idle.Len()
@@ -131,12 +138,12 @@ func (this *Pool) Close() error {
 	return nil
 }
 
-// Submit2 submits a task
+// Submit2 submits a task with nil arg
 func (this *Pool) Submit2(f TaskFunc) error {
 	return this.Submit(f, nil)
 }
 
-// Submit submits a task
+// Submit submits a task with arg
 func (this *Pool) Submit(f TaskFunc, arg interface{}) error {
 	var w *work
 
@@ -145,7 +152,7 @@ func (this *Pool) Submit(f TaskFunc, arg interface{}) error {
 	}
 
 	this.mux.Lock()
-	if this.closeDone == 1 || this.idle == nil {
+	if this.closeDone == 1 || this.idle == nil { // check again,make sure
 		this.mux.Unlock()
 		return ErrClosed
 	}
@@ -177,15 +184,15 @@ func (this *Pool) Submit(f TaskFunc, arg interface{}) error {
 	return nil
 }
 
+// push the running goroutine to idle pool
 func (this *Pool) push(w *work) error {
-	// quick check
-	if atomic.LoadUint32(&this.closeDone) == 1 {
+	if atomic.LoadUint32(&this.closeDone) == 1 { // quick check
 		return ErrClosed
 	}
 
 	w.markTime = time.Now()
 	this.mux.Lock()
-	if this.closeDone == 1 {
+	if this.closeDone == 1 { // check again,make sure
 		this.mux.Unlock()
 		return ErrClosed
 	}
@@ -202,7 +209,9 @@ func (this *work) run(f item) {
 			atomic.AddInt32(&this.pool.running, -1)
 			this.pool.cache.Put(this)
 			if r := recover(); r != nil {
-				// log
+				if this.pool.panicFunc != nil {
+					this.pool.panicFunc()
+				}
 			}
 		}()
 
