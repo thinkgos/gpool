@@ -17,6 +17,9 @@ const (
 // ErrClosed indicate the pool has closed
 var ErrClosed = errors.New("pool has closed")
 
+// ErrInvalidFunc indicate the task function is invalid
+var ErrInvalidFunc = errors.New("invalid function, must not be nil")
+
 // TaskFunc task function define
 type TaskFunc func(arg interface{})
 
@@ -146,6 +149,10 @@ func (this *Pool) Submit2(f TaskFunc) error {
 // Submit submits a task with arg
 func (this *Pool) Submit(f TaskFunc, arg interface{}) error {
 	var w *work
+
+	if f == nil {
+		return ErrInvalidFunc
+	}
 
 	if atomic.LoadUint32(&this.closeDone) == 1 {
 		return ErrClosed
