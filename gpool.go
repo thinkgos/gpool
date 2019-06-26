@@ -208,10 +208,8 @@ func (this *work) run(f item) {
 		defer func() {
 			atomic.AddInt32(&this.pool.running, -1)
 			this.pool.cache.Put(this)
-			if r := recover(); r != nil {
-				if this.pool.panicFunc != nil {
-					this.pool.panicFunc()
-				}
+			if r := recover(); r != nil && this.pool.panicFunc != nil {
+				this.pool.panicFunc()
 			}
 		}()
 
