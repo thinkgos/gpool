@@ -66,6 +66,7 @@ func New(c ...*Config) *Pool {
 func (this *Pool) cleanUp() {
 	tick := time.NewTimer(this.cfg.IdleTimeout)
 	defer tick.Stop()
+
 	for {
 		select {
 		case <-tick.C:
@@ -164,7 +165,7 @@ func (this *Pool) submit(f TaskFunc, arg interface{}) error {
 	if int(atomic.LoadInt32(&this.running)) < this.Cap() {
 		this.mux.Unlock()
 		w = this.cache.Get().(*work)
-		go w.run(itm)
+		w.run(itm)
 		return nil
 	}
 
@@ -199,22 +200,24 @@ func (this *Pool) push(w *work) error {
 }
 
 func (this *work) run(f item) {
-	defer func() {
-		atomic.AddInt32(&this.pool.running, -1)
-		this.pool.cache.Put(this)
-		if r := recover(); r != nil {
-			// log
+	atomic.AddInt32(&this.pool.running, 1)
+	go func() {
+		defer func() {
+			atomic.AddInt32(&this.pool.running, -1)
+			this.pool.cache.Put(this)
+			if r := recover(); r != nil {
+				// log
+			}
+		}()
+
+		for {
+			f.task(f.arg)
+			if this.pool.push(this) != nil {
+				return
+			}
+			if f = <-this.itm; f.task == nil {
+				return
+			}
 		}
 	}()
-
-	atomic.AddInt32(&this.pool.running, 1)
-	for {
-		f.task(f.arg)
-		if this.pool.push(this) != nil {
-			return
-		}
-		if f = <-this.itm; f.task == nil {
-			return
-		}
-	}
 }

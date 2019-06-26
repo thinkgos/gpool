@@ -8,7 +8,7 @@ import (
 const (
 	benchRunCnt  = 1000000
 	benchParam   = 10
-	benchPoolCap = 200000
+	benchPoolCap = 50000
 )
 
 func poolFunc(args int) {
