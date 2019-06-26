@@ -10,7 +10,7 @@ import (
 
 // default config
 const (
-	DefaultCapacity    = 1024
+	DefaultCapacity    = 100000
 	DefaultIdleTImeout = 1 * time.Second
 )
 
@@ -93,16 +93,6 @@ func (this *Pool) cleanUp() {
 	}
 }
 
-// Submit submits a task
-func (this *Pool) Submit(f TaskFunc) error {
-	return this.submit(f, nil)
-}
-
-// Submit submits a task
-func (this *Pool) Submit2(f TaskFunc, arg interface{}) error {
-	return this.submit(f, arg)
-}
-
 // Len returns the currently running goroutines
 func (this *Pool) Len() int {
 	return int(atomic.LoadInt32(&this.running))
@@ -141,7 +131,13 @@ func (this *Pool) Close() error {
 	return nil
 }
 
-func (this *Pool) submit(f TaskFunc, arg interface{}) error {
+// Submit2 submits a task
+func (this *Pool) Submit2(f TaskFunc) error {
+	return this.Submit(f, nil)
+}
+
+// Submit submits a task
+func (this *Pool) Submit(f TaskFunc, arg interface{}) error {
 	var w *work
 
 	if atomic.LoadUint32(&this.closeDone) == 1 {

@@ -7,4 +7,5 @@ go:
 
 install: 
 - go get github.com/thinkgos/gpool
-- go get -v .
+- go test -v .
+- go test -benchmem -bench . -coverprofile=/tmp/go-code-bench

@@ -30,7 +30,7 @@ func BenchmarkPoolUnlimit(b *testing.B) {
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < benchRunCnt; j++ {
-			_ = p.Submit2(func(arg interface{}) {
+			_ = p.Submit(func(arg interface{}) {
 				poolFunc(arg.(int))
 			}, benchParam)
 		}
