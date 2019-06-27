@@ -140,7 +140,7 @@ func (this *Pool) Idle() int {
 	return cnt
 }
 
-// Close the pool
+// Close the pool,if grace enable util all goroutine close
 func (this *Pool) Close(grace bool) error {
 	if atomic.LoadUint32(&this.closeDone) == 1 {
 		return nil
