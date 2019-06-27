@@ -168,6 +168,7 @@ func (this *Pool) Submit(f TaskFunc, arg interface{}) error {
 		return nil
 	}
 
+	// bug: actual goroutines maybe greater than cap,when race
 	if this.Free() > 0 {
 		this.mux.Unlock()
 		w = this.cache.Get().(*work)
