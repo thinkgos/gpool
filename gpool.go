@@ -12,10 +12,6 @@ import (
 const (
 	DefaultCapacity    = 100000
 	DefaultIdleTImeout = 1 * time.Second
-	// high 32bit(running count) add 1   and low 32bit minus 1(free count)
-	incMagic = 0x00000000ffffffff
-	// high 32bit(running count) minus 1 and low 32bit add 1(free count)
-	decMagic = 0xffffffff00000001
 )
 
 // ErrClosed indicate the pool has closed
@@ -39,7 +35,7 @@ type Pool struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	magic uint64 // goroutines running count(h32) and free count(l32)
+	running int32 // goroutines running count
 
 	closeDone uint32
 
@@ -63,8 +59,8 @@ func New(c ...*Config) *Pool {
 		cfg:    cfg,
 		ctx:    ctx,
 		cancel: cancel,
-		magic:  uint64(cfg.Capacity),
-		idle:   newList(),
+
+		idle: newList(),
 	}
 	p.cond = sync.NewCond(&p.mux)
 	p.cache = &sync.Pool{
@@ -110,7 +106,7 @@ func (this *Pool) SetPanicHandler(f func()) {
 
 // Len returns the currently running goroutines
 func (this *Pool) Len() int {
-	return int((atomic.LoadUint64(&this.magic) >> 32) & 0xffffffff)
+	return int(atomic.LoadInt32(&this.running))
 }
 
 // Idle return the goroutines has running but in idle(no task work)
@@ -123,7 +119,7 @@ func (this *Pool) Idle() int {
 
 // Free return the available goroutines can create
 func (this *Pool) Free() int {
-	return int(atomic.LoadUint64(&this.magic) & 0xffffffff)
+	return this.cfg.Capacity - int(atomic.LoadInt32(&this.running))
 }
 
 // Cap tha capacity of goroutines the pool can create
@@ -210,10 +206,10 @@ func (this *Pool) push(w *work) error {
 }
 
 func (this *work) run(f item) {
-	atomic.AddUint64(&this.pool.magic, incMagic)
+	atomic.AddInt32(&this.pool.running, 1)
 	go func() {
 		defer func() {
-			atomic.AddUint64(&this.pool.magic, decMagic)
+			atomic.AddInt32(&this.pool.running, -1)
 			this.pool.cache.Put(this)
 			if r := recover(); r != nil && this.pool.panicFunc != nil {
 				this.pool.panicFunc()
