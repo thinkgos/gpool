@@ -12,6 +12,10 @@ import (
 const (
 	DefaultCapacity    = 100000
 	DefaultIdleTImeout = 1 * time.Second
+	// high 32bit(running count) add 1   and low 32bit minus 1(free count)
+	incMagic = 0x00000000ffffffff
+	// high 32bit(running count) minus 1 and low 32bit add 1(free count)
+	decMagic = 0xffffffff00000001
 )
 
 // ErrClosed indicate the pool has closed
@@ -35,13 +39,14 @@ type Pool struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	magic uint64 // goroutines running count(h32) and free count(l32)
+
 	closeDone uint32
 
-	running int32 // goroutines running count
-	mux     sync.Mutex
-	cond    *sync.Cond
-	idle    *list
-	cache   *sync.Pool
+	mux   sync.Mutex
+	cond  *sync.Cond
+	idle  *list
+	cache *sync.Pool
 
 	panicFunc func()
 }
@@ -58,8 +63,8 @@ func New(c ...*Config) *Pool {
 		cfg:    cfg,
 		ctx:    ctx,
 		cancel: cancel,
-
-		idle: newList(),
+		magic:  uint64(cfg.Capacity),
+		idle:   newList(),
 	}
 	p.cond = sync.NewCond(&p.mux)
 	p.cache = &sync.Pool{
@@ -105,7 +110,7 @@ func (this *Pool) SetPanicHandler(f func()) {
 
 // Len returns the currently running goroutines
 func (this *Pool) Len() int {
-	return int(atomic.LoadInt32(&this.running))
+	return int((atomic.LoadUint64(&this.magic) >> 32) & 0xffffffff)
 }
 
 // Idle return the goroutines has running but in idle(no task work)
@@ -118,7 +123,7 @@ func (this *Pool) Idle() int {
 
 // Free return the available goroutines can create
 func (this *Pool) Free() int {
-	return this.cfg.Capacity - int(atomic.LoadInt32(&this.running))
+	return int(atomic.LoadUint64(&this.magic) & 0xffffffff)
 }
 
 // Cap tha capacity of goroutines the pool can create
@@ -139,11 +144,6 @@ func (this *Pool) Close() error {
 	}
 	this.mux.Unlock()
 	return nil
-}
-
-// Submit2 submits a task with nil arg
-func (this *Pool) Submit2(f TaskFunc) error {
-	return this.Submit(f, nil)
 }
 
 // Submit submits a task with arg
@@ -172,7 +172,7 @@ func (this *Pool) Submit(f TaskFunc, arg interface{}) error {
 		return nil
 	}
 
-	if int(atomic.LoadInt32(&this.running)) < this.Cap() {
+	if this.Free() > 0 {
 		this.mux.Unlock()
 		w = this.cache.Get().(*work)
 		w.run(itm)
@@ -210,10 +210,10 @@ func (this *Pool) push(w *work) error {
 }
 
 func (this *work) run(f item) {
-	atomic.AddInt32(&this.pool.running, 1)
+	atomic.AddUint64(&this.pool.magic, incMagic)
 	go func() {
 		defer func() {
-			atomic.AddInt32(&this.pool.running, -1)
+			atomic.AddUint64(&this.pool.magic, decMagic)
 			this.pool.cache.Put(this)
 			if r := recover(); r != nil && this.pool.panicFunc != nil {
 				this.pool.panicFunc()
