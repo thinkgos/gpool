@@ -3,6 +3,7 @@ package gpool
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -10,8 +11,9 @@ import (
 
 // the default config parameter
 const (
-	DefaultCapacity    = 100000
-	DefaultIdleTImeout = 1 * time.Second
+	DefaultCapacity      = 100000
+	DefaultKeepAliveTime = 1 * time.Second
+	miniCleanupTime      = 100 * time.Millisecond
 )
 
 // ErrClosed indicate the pool has closed
@@ -50,13 +52,14 @@ type Pool struct {
 // New a pool with the config if there is ,other use default config
 func New(c ...*Config) *Pool {
 	if len(c) == 0 {
-		c = append(c, &Config{Capacity: DefaultCapacity, IdleTimeout: DefaultIdleTImeout})
+		c = append(c, &Config{Capacity: DefaultCapacity, IdleTimeout: DefaultKeepAliveTime})
+	} else if c[0].Capacity < 0 {
+		c[0].Capacity = DefaultCapacity
 	}
 
-	cfg := c[0]
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Pool{
-		cfg:    cfg,
+		cfg:    c[0],
 		ctx:    ctx,
 		cancel: cancel,
 
@@ -77,17 +80,23 @@ func (this *Pool) cleanUp() {
 	for {
 		select {
 		case <-tick.C:
+			nearTimeout := this.cfg.IdleTimeout
 			now := time.Now()
 			this.mux.Lock()
 			var next *work
 			for e := this.idle.Front(); e != nil; e = next {
-				if now.Sub(e.markTime) < this.cfg.IdleTimeout {
+				if nearTimeout = now.Sub(e.markTime); nearTimeout < this.cfg.IdleTimeout {
 					break
 				}
 				next = e.Next() // save before delete
 				this.idle.remove(e).itm <- item{}
 			}
 			this.mux.Unlock()
+			if nearTimeout < miniCleanupTime {
+				nearTimeout = miniCleanupTime
+			}
+			fmt.Println(nearTimeout)
+			tick.Reset(nearTimeout)
 		case <-this.ctx.Done():
 			this.mux.Lock()
 			for e := this.idle.Front(); e != nil; e = e.Next() {
@@ -111,8 +120,11 @@ func (this *Pool) Len() int {
 
 // Idle return the goroutines has running but in idle(no task work)
 func (this *Pool) Idle() int {
+	var cnt int
 	this.mux.Lock()
-	cnt := this.idle.Len()
+	if this.idle != nil {
+		cnt = this.idle.Len()
+	}
 	this.mux.Unlock()
 	return cnt
 }
