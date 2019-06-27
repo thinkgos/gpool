@@ -45,6 +45,7 @@ type Pool struct {
 	cond  *sync.Cond
 	idle  *list
 	cache *sync.Pool
+	wg    sync.WaitGroup
 
 	panicFunc func()
 }
@@ -118,6 +119,16 @@ func (this *Pool) Len() int {
 	return int(atomic.LoadInt32(&this.running))
 }
 
+// Cap tha capacity of goroutines the pool can create
+func (this *Pool) Cap() int {
+	return this.cfg.Capacity
+}
+
+// Free return the available goroutines can create
+func (this *Pool) Free() int {
+	return this.cfg.Capacity - int(atomic.LoadInt32(&this.running))
+}
+
 // Idle return the goroutines has running but in idle(no task work)
 func (this *Pool) Idle() int {
 	var cnt int
@@ -129,18 +140,8 @@ func (this *Pool) Idle() int {
 	return cnt
 }
 
-// Free return the available goroutines can create
-func (this *Pool) Free() int {
-	return this.cfg.Capacity - int(atomic.LoadInt32(&this.running))
-}
-
-// Cap tha capacity of goroutines the pool can create
-func (this *Pool) Cap() int {
-	return this.cfg.Capacity
-}
-
 // Close the pool
-func (this *Pool) Close() error {
+func (this *Pool) Close(grace bool) error {
 	if atomic.LoadUint32(&this.closeDone) == 1 {
 		return nil
 	}
@@ -151,6 +152,9 @@ func (this *Pool) Close() error {
 		atomic.StoreUint32(&this.closeDone, 1)
 	}
 	this.mux.Unlock()
+	if grace {
+		this.wg.Wait()
+	}
 	return nil
 }
 
@@ -219,9 +223,11 @@ func (this *Pool) push(w *work) error {
 }
 
 func (this *work) run(f item) {
+	this.pool.wg.Add(1)
 	atomic.AddInt32(&this.pool.running, 1)
 	go func() {
 		defer func() {
+			this.pool.wg.Done()
 			atomic.AddInt32(&this.pool.running, -1)
 			this.pool.cache.Put(this)
 			if r := recover(); r != nil && this.pool.panicFunc != nil {
