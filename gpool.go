@@ -1,3 +1,4 @@
+// package gpool Implementing a goroutine pool
 package gpool
 
 import (
@@ -26,7 +27,7 @@ var (
 	ErrClosed = errors.New("pool has closed")
 	// ErrInvalidFunc indicate the task function is invalid
 	ErrInvalidFunc = errors.New("invalid function, must not be nil")
-	// ErrOverload
+	// ErrOverload indicate the goroutine overload
 	ErrOverload = errors.New("pool overload")
 )
 
