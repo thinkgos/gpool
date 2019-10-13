@@ -38,6 +38,7 @@
   </component>
   <component name="ProjectId" id="1S9GxXB1EvTycOfkwUZfpZFhVaO" />
   <component name="PropertiesComponent">
+    <property name="GO_FMT" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="configurable.Global.GOPATH.is.expanded" value="true" />
     <property name="configurable.Project.GOPATH.is.expanded" value="true" />

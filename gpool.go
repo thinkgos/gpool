@@ -3,37 +3,46 @@ package gpool
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-// the default config parameter
+// default config parameter
 const (
-	DefaultCapacity      = 100000
-	DefaultKeepAliveTime = 1 * time.Second
-	miniCleanupTime      = 100 * time.Millisecond
+	DefaultCapacity        = 100000
+	DefaultSurvivalTime    = 1 * time.Second
+	DefaultMiniCleanupTime = 100 * time.Millisecond
 )
 
-// ErrClosed indicate the pool has closed
-var ErrClosed = errors.New("pool has closed")
+// define pool state
+const (
+	onWork = iota
+	closed
+)
 
-// ErrInvalidFunc indicate the task function is invalid
-var ErrInvalidFunc = errors.New("invalid function, must not be nil")
+var (
+	// ErrClosed indicate the pool has closed
+	ErrClosed = errors.New("pool has closed")
+	// ErrInvalidFunc indicate the task function is invalid
+	ErrInvalidFunc = errors.New("invalid function, must not be nil")
+	// ErrOverload
+	ErrOverload = errors.New("pool overload")
+)
 
 // TaskFunc task function define
 type TaskFunc func(arg interface{})
 
 // Config the pool config parameter
 type Config struct {
-	Capacity    int
-	IdleTimeout time.Duration
+	Capacity        int
+	SurvivalTime    time.Duration
+	MiniCleanupTime time.Duration // mini cleanup time
 }
 
 // Pool the goroutine pool
 type Pool struct {
-	cfg    *Config
+	cfg    Config
 	ctx    context.Context
 	cancel context.CancelFunc
 
@@ -41,21 +50,29 @@ type Pool struct {
 
 	closeDone uint32
 
-	mux   sync.Mutex
-	cond  *sync.Cond
-	idle  *list
-	cache *sync.Pool
-	wg    sync.WaitGroup
+	mux            sync.Mutex
+	cond           *sync.Cond
+	idleGoRoutines *list // idle go routine list
+	cache          *sync.Pool
+	wg             sync.WaitGroup
 
 	panicFunc func()
 }
 
-// New a pool with the config if there is ,other use default config
-func New(c ...*Config) *Pool {
+// New new a pool with the config if there is ,other use default config
+func New(c ...Config) *Pool {
 	if len(c) == 0 {
-		c = append(c, &Config{Capacity: DefaultCapacity, IdleTimeout: DefaultKeepAliveTime})
-	} else if c[0].Capacity < 0 {
+		c = append(c, Config{
+			Capacity:        DefaultCapacity,
+			SurvivalTime:    DefaultSurvivalTime,
+			MiniCleanupTime: DefaultMiniCleanupTime,
+		})
+	}
+	if c[0].Capacity < 0 {
 		c[0].Capacity = DefaultCapacity
+	}
+	if c[0].MiniCleanupTime < DefaultMiniCleanupTime {
+		c[0].MiniCleanupTime = DefaultMiniCleanupTime
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -64,7 +81,7 @@ func New(c ...*Config) *Pool {
 		ctx:    ctx,
 		cancel: cancel,
 
-		idle: newList(),
+		idleGoRoutines: newList(),
 	}
 	p.cond = sync.NewCond(&p.mux)
 	p.cache = &sync.Pool{
@@ -75,41 +92,41 @@ func New(c ...*Config) *Pool {
 }
 
 func (this *Pool) cleanUp() {
-	tick := time.NewTimer(this.cfg.IdleTimeout)
+	tick := time.NewTimer(this.cfg.SurvivalTime)
 	defer tick.Stop()
 
 	for {
 		select {
 		case <-tick.C:
-			nearTimeout := this.cfg.IdleTimeout
+			nearTimeout := this.cfg.SurvivalTime
 			now := time.Now()
 			this.mux.Lock()
 			var next *work
-			for e := this.idle.Front(); e != nil; e = next {
-				if nearTimeout = now.Sub(e.markTime); nearTimeout < this.cfg.IdleTimeout {
+			for e := this.idleGoRoutines.Front(); e != nil; e = next {
+				if nearTimeout = now.Sub(e.markTime); nearTimeout < this.cfg.SurvivalTime {
 					break
 				}
 				next = e.Next() // save before delete
-				this.idle.remove(e).itm <- item{}
+				this.idleGoRoutines.remove(e).itm <- item{}
 			}
 			this.mux.Unlock()
-			if nearTimeout < miniCleanupTime {
-				nearTimeout = miniCleanupTime
+			if nearTimeout < this.cfg.MiniCleanupTime {
+				nearTimeout = this.cfg.MiniCleanupTime
 			}
-			fmt.Println(nearTimeout)
 			tick.Reset(nearTimeout)
 		case <-this.ctx.Done():
 			this.mux.Lock()
-			for e := this.idle.Front(); e != nil; e = e.Next() {
-				e.itm <- item{}
+			for e := this.idleGoRoutines.Front(); e != nil; e = e.Next() {
+				e.itm <- item{} // give a nil function, make all goroutine exit
 			}
-			this.idle = nil
+			this.idleGoRoutines = nil
 			this.mux.Unlock()
 			return
 		}
 	}
 }
 
+// SetPanicHandler set panic handler
 func (this *Pool) SetPanicHandler(f func()) {
 	this.panicFunc = f
 }
@@ -133,8 +150,8 @@ func (this *Pool) Free() int {
 func (this *Pool) Idle() int {
 	var cnt int
 	this.mux.Lock()
-	if this.idle != nil {
-		cnt = this.idle.Len()
+	if this.idleGoRoutines != nil {
+		cnt = this.idleGoRoutines.Len()
 	}
 	this.mux.Unlock()
 	return cnt
@@ -142,14 +159,14 @@ func (this *Pool) Idle() int {
 
 // Close the pool,if grace enable util all goroutine close
 func (this *Pool) Close(grace bool) error {
-	if atomic.LoadUint32(&this.closeDone) == 1 {
+	if atomic.LoadUint32(&this.closeDone) == closed {
 		return nil
 	}
 
 	this.mux.Lock()
-	if this.closeDone == 0 { // check again,make sure
+	if this.closeDone == onWork { // check again,make sure
 		this.cancel()
-		atomic.StoreUint32(&this.closeDone, 1)
+		atomic.StoreUint32(&this.closeDone, closed)
 	}
 	this.mux.Unlock()
 	if grace {
@@ -166,25 +183,25 @@ func (this *Pool) Submit(f TaskFunc, arg interface{}) error {
 		return ErrInvalidFunc
 	}
 
-	if atomic.LoadUint32(&this.closeDone) == 1 {
+	if atomic.LoadUint32(&this.closeDone) == closed {
 		return ErrClosed
 	}
 
 	this.mux.Lock()
-	if this.closeDone == 1 || this.idle == nil { // check again,make sure
+	if this.closeDone == closed || this.idleGoRoutines == nil { // check again,make sure
 		this.mux.Unlock()
 		return ErrClosed
 	}
 
 	itm := item{f, arg}
-	if w = this.idle.Front(); w != nil {
-		this.idle.Remove(w)
+	if w = this.idleGoRoutines.Front(); w != nil {
+		this.idleGoRoutines.Remove(w)
 		this.mux.Unlock()
 		w.itm <- itm
 		return nil
 	}
 
-	// bug: actual goroutines maybe greater than cap,when race
+	// actual goroutines maybe greater than cap, when race, but it will overload and return to normal in goroutine
 	if this.Free() > 0 {
 		this.mux.Unlock()
 		w = this.cache.Get().(*work)
@@ -194,8 +211,8 @@ func (this *Pool) Submit(f TaskFunc, arg interface{}) error {
 
 	for {
 		this.cond.Wait()
-		if w = this.idle.Front(); w != nil {
-			this.idle.Remove(w)
+		if w = this.idleGoRoutines.Front(); w != nil {
+			this.idleGoRoutines.Remove(w)
 			break
 		}
 	}
@@ -206,23 +223,27 @@ func (this *Pool) Submit(f TaskFunc, arg interface{}) error {
 
 // push the running goroutine to idle pool
 func (this *Pool) push(w *work) error {
-	if atomic.LoadUint32(&this.closeDone) == 1 { // quick check
+	if atomic.LoadUint32(&this.closeDone) == closed { // quick check
 		return ErrClosed
+	}
+
+	if this.Free() < 0 {
+		return ErrOverload
 	}
 
 	w.markTime = time.Now()
 	this.mux.Lock()
-	if this.closeDone == 1 { // check again,make sure
+	if this.closeDone == closed { // check again,make sure
 		this.mux.Unlock()
 		return ErrClosed
 	}
-	this.idle.PushBack(w)
+	this.idleGoRoutines.PushBack(w)
 	this.cond.Signal()
 	this.mux.Unlock()
 	return nil
 }
 
-func (this *work) run(f item) {
+func (this *work) run(itm item) {
 	this.pool.wg.Add(1)
 	atomic.AddInt32(&this.pool.running, 1)
 	go func() {
@@ -236,11 +257,11 @@ func (this *work) run(f item) {
 		}()
 
 		for {
-			f.task(f.arg)
+			itm.task(itm.arg)
 			if this.pool.push(this) != nil {
 				return
 			}
-			if f = <-this.itm; f.task == nil {
+			if itm = <-this.itm; itm.task == nil {
 				return
 			}
 		}

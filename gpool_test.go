@@ -24,7 +24,7 @@ func BenchmarkGoroutineUnlimit(b *testing.B) {
 }
 
 func BenchmarkPoolUnlimit(b *testing.B) {
-	p := New(&Config{benchPoolCap, time.Second * 1})
+	p := New(Config{benchPoolCap, time.Second * 1, DefaultMiniCleanupTime})
 	defer p.Close(true)
 
 	b.StartTimer()
@@ -57,7 +57,7 @@ func TestNewWithConfig(t *testing.T) {
 	})
 
 	t.Run("invalid config cap use default", func(t *testing.T) {
-		p := New(&Config{-1, time.Second * 1})
+		p := New(Config{-1, time.Second * 1, DefaultMiniCleanupTime})
 		defer p.Close(true)
 		if p.Cap() != DefaultCapacity {
 			t.Errorf("Pool.Cap() = %v, want %v", p.Cap(), DefaultCapacity)
@@ -72,7 +72,7 @@ func TestNewWithConfig(t *testing.T) {
 
 	t.Run("use user config", func(t *testing.T) {
 		want := 10000
-		p := New(&Config{want, time.Second * 1})
+		p := New(Config{want, time.Second * 1, DefaultMiniCleanupTime})
 		defer p.Close(true)
 		if p.Cap() != want {
 			t.Errorf("Pool.Cap() = %v, want %v", p.Cap(), want)
@@ -171,7 +171,7 @@ func TestWithWork(t *testing.T) {
 }
 
 func TestWithFullWork(t *testing.T) {
-	p := New(&Config{5, time.Second * 1})
+	p := New(Config{5, time.Second * 1, DefaultMiniCleanupTime})
 	defer p.Close(true)
 	for i := 0; i < 10; i++ {
 		_ = p.Submit(poolFunc, 1)

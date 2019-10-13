@@ -33,12 +33,12 @@ func (this *work) Next() *work {
 }
 
 // Prev returns the previous list element or nil.
-func (this *work) Prev() *work {
-	if p := this.prev; this.list != nil && p != &this.list.root {
-		return p
-	}
-	return nil
-}
+//func (this *work) Prev() *work {
+//	if p := this.prev; this.list != nil && p != &this.list.root {
+//		return p
+//	}
+//	return nil
+//}
 
 // list represents a doubly linked list.
 type list struct {
@@ -69,12 +69,12 @@ func (l *list) Front() *work {
 }
 
 // Back returns the last element of list l or nil if the list is empty.
-func (l *list) Back() *work {
-	if l.length == 0 {
-		return nil
-	}
-	return l.root.prev
-}
+//func (l *list) Back() *work {
+//	if l.length == 0 {
+//		return nil
+//	}
+//	return l.root.prev
+//}
 
 // insert inserts this after at, increments l.length, and returns this.
 func (l *list) insert(this, at *work) *work {
@@ -111,9 +111,9 @@ func (l *list) Remove(this *work) *work {
 }
 
 // PushFront inserts a new element at the front of list l and returns this.
-func (l *list) PushFront(this *work) *work {
-	return l.insert(this, &l.root)
-}
+//func (l *list) PushFront(this *work) *work {
+//	return l.insert(this, &l.root)
+//}
 
 // PushBack inserts a new element at the back of list l and returns this.
 func (l *list) PushBack(this *work) *work {

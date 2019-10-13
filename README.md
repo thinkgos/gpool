@@ -3,4 +3,4 @@
 [![codecov](https://codecov.io/gh/thinkgos/gpool/branch/master/graph/badge.svg)](https://codecov.io/gh/thinkgos/gpool)
 
 ## gpool
-corutine pool
+oorutine pool
