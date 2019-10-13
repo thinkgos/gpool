@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="beea6f0c-28bd-422b-9116-bcfdf3ac1ab0" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.travis.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.travis.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cover.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/gpool.go" beforeDir="false" afterPath="$PROJECT_DIR$/gpool.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gpool_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/gpool_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/work.go" beforeDir="false" afterPath="$PROJECT_DIR$/work.go" afterDir="false" />
+    </list>
+    <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="CoverageViewManager">
+    <option name="myElementSize" value="422" />
+  </component>
+  <component name="DatabaseView">
+    <option name="SHOW_INTERMEDIATE" value="true" />
+    <option name="GROUP_DATA_SOURCES" value="true" />
+    <option name="GROUP_SCHEMA" value="true" />
+    <option name="GROUP_CONTENTS" value="false" />
+    <option name="SORT_POSITIONED" value="false" />
+    <option name="SHOW_EMPTY_GROUPS" value="false" />
+    <option name="AUTO_SCROLL_FROM_SOURCE" value="false" />
+    <option name="HIDDEN_KINDS">
+      <set />
+    </option>
+    <expand />
+    <select />
+  </component>
+  <component name="GOROOT" path="/usr/local/go" />
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectId" id="1S9GxXB1EvTycOfkwUZfpZFhVaO" />
+  <component name="PropertiesComponent">
+    <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="configurable.Global.GOPATH.is.expanded" value="true" />
+    <property name="configurable.Project.GOPATH.is.expanded" value="true" />
+    <property name="go.import.settings.migrated" value="true" />
+    <property name="ignore_missing_gitignore" value="true" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="nodejs_interpreter_path.stuck_in_default_project" value="undefined stuck path" />
+    <property name="nodejs_npm_path_reset_for_default_project" value="true" />
+    <property name="settings.editor.selected.configurable" value="watcher.settings" />
+  </component>
+  <component name="RunDashboard">
+    <option name="ruleStates">
+      <list>
+        <RuleState>
+          <option name="name" value="ConfigurationTypeDashboardGroupingRule" />
+        </RuleState>
+        <RuleState>
+          <option name="name" value="StatusDashboardGroupingRule" />
+        </RuleState>
+      </list>
+    </option>
+  </component>
+  <component name="RunManager" selected="Go Test.BenchmarkPoolUnlimit in github.com/thinkgos/gpool">
+    <configuration name="BenchmarkGoroutineUnlimit in github.com/thinkgos/gpool" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="gpool" />
+      <working_directory value="$PROJECT_DIR$" />
+      <framework value="gobench" />
+      <kind value="PACKAGE" />
+      <package value="github.com/thinkgos/gpool" />
+      <pattern value="^BenchmarkGoroutineUnlimit$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="BenchmarkPoolUnlimit in github.com/thinkgos/gpool" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="gpool" />
+      <working_directory value="$PROJECT_DIR$" />
+      <framework value="gobench" />
+      <kind value="PACKAGE" />
+      <package value="github.com/thinkgos/gpool" />
+      <pattern value="^BenchmarkPoolUnlimit$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go test github.com/thinkgos/gpool" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="gpool" />
+      <working_directory value="$PROJECT_DIR$" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="github.com/thinkgos/gpool" />
+      <method v="2" />
+    </configuration>
+    <configuration name="gobench github.com/thinkgos/gpool" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="gpool" />
+      <working_directory value="$PROJECT_DIR$" />
+      <framework value="gobench" />
+      <kind value="PACKAGE" />
+      <package value="github.com/thinkgos/gpool" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Go Test.BenchmarkPoolUnlimit in github.com/thinkgos/gpool" />
+        <item itemvalue="Go Test.BenchmarkGoroutineUnlimit in github.com/thinkgos/gpool" />
+        <item itemvalue="Go Test.gobench github.com/thinkgos/gpool" />
+        <item itemvalue="Go Test.go test github.com/thinkgos/gpool" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="1" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VgoProject">
+    <integration-enabled>true</integration-enabled>
+    <proxy>https://goproxy.io</proxy>
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/gpool$gobench_github_com_thinkgos_gpool.out" NAME="gobench github.com/thinkgos/gpool Coverage Results" MODIFIED="1570973716633" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="GoCoverage" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" />
+    <SUITE FILE_PATH="coverage/gpool$go_test_github_com_thinkgos_gpool.out" NAME="go test github.com/thinkgos/gpool Coverage Results" MODIFIED="1570973702906" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="GoCoverage" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" />
+  </component>
+</project>
