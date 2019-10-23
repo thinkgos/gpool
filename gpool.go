@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2019 jiang
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 // package gpool Implementing a goroutine pool
 package gpool
 
@@ -43,11 +65,13 @@ type Config struct {
 
 // Pool the goroutine pool
 type Pool struct {
-	cfg    Config
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	running int32 // goroutines running count
+	capacity        int32 // goroutines capacity
+	running         int32 // goroutines running count
+	survivalTime    time.Duration
+	miniCleanupTime time.Duration // mini cleanup time
 
 	closeDone uint32
 
@@ -78,9 +102,12 @@ func New(c ...Config) *Pool {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Pool{
-		cfg:    c[0],
 		ctx:    ctx,
 		cancel: cancel,
+
+		capacity:        int32(c[0].Capacity),
+		survivalTime:    c[0].SurvivalTime,
+		miniCleanupTime: c[0].MiniCleanupTime,
 
 		idleGoRoutines: newList(),
 	}
@@ -93,26 +120,26 @@ func New(c ...Config) *Pool {
 }
 
 func (this *Pool) cleanUp() {
-	tick := time.NewTimer(this.cfg.SurvivalTime)
+	tick := time.NewTimer(this.survivalTime)
 	defer tick.Stop()
 
 	for {
 		select {
 		case <-tick.C:
-			nearTimeout := this.cfg.SurvivalTime
+			nearTimeout := this.survivalTime
 			now := time.Now()
 			this.mux.Lock()
 			var next *work
 			for e := this.idleGoRoutines.Front(); e != nil; e = next {
-				if nearTimeout = now.Sub(e.markTime); nearTimeout < this.cfg.SurvivalTime {
+				if nearTimeout = now.Sub(e.markTime); nearTimeout < this.survivalTime {
 					break
 				}
 				next = e.Next() // save before delete
 				this.idleGoRoutines.remove(e).itm <- item{}
 			}
 			this.mux.Unlock()
-			if nearTimeout < this.cfg.MiniCleanupTime {
-				nearTimeout = this.cfg.MiniCleanupTime
+			if nearTimeout < this.miniCleanupTime {
+				nearTimeout = this.miniCleanupTime
 			}
 			tick.Reset(nearTimeout)
 		case <-this.ctx.Done():
@@ -139,12 +166,20 @@ func (this *Pool) Len() int {
 
 // Cap tha capacity of goroutines the pool can create
 func (this *Pool) Cap() int {
-	return this.cfg.Capacity
+	return int(atomic.LoadInt32(&this.capacity))
+}
+
+// Adjust adjust the capacity of the pools goroutines
+func (this *Pool) Adjust(size int) {
+	if size < 0 || this.Cap() == size {
+		return
+	}
+	atomic.StoreInt32(&this.capacity, int32(size))
 }
 
 // Free return the available goroutines can create
 func (this *Pool) Free() int {
-	return this.cfg.Capacity - int(atomic.LoadInt32(&this.running))
+	return this.Cap() - this.Len()
 }
 
 // Idle return the goroutines has running but in idle(no task work)
