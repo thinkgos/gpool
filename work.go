@@ -47,8 +47,8 @@ type work struct {
 }
 
 // Next returns the next list element or nil.
-func (this *work) Next() *work {
-	if p := this.next; this.list != nil && p != &this.list.root {
+func (sf *work) Next() *work {
+	if p := sf.next; sf.list != nil && p != &sf.list.root {
 		return p
 	}
 	return nil

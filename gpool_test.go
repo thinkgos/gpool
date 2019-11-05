@@ -47,7 +47,7 @@ func BenchmarkGoroutineUnlimit(b *testing.B) {
 
 func BenchmarkPoolUnlimit(b *testing.B) {
 	p := New(Config{benchPoolCap, time.Second * 1, DefaultMiniCleanupTime})
-	defer p.Close(true)
+	defer p.CloseGrace()
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
@@ -63,7 +63,7 @@ func BenchmarkPoolUnlimit(b *testing.B) {
 func TestNewWithConfig(t *testing.T) {
 	t.Run("default config", func(t *testing.T) {
 		p := New()
-		defer p.Close(true)
+		defer p.CloseGrace()
 		if p.Cap() != DefaultCapacity {
 			t.Errorf("Pool.Cap() = %v, want %v", p.Cap(), DefaultCapacity)
 		}
@@ -80,7 +80,7 @@ func TestNewWithConfig(t *testing.T) {
 
 	t.Run("invalid config cap use default", func(t *testing.T) {
 		p := New(Config{-1, time.Second * 1, DefaultMiniCleanupTime})
-		defer p.Close(true)
+		defer p.CloseGrace()
 		if p.Cap() != DefaultCapacity {
 			t.Errorf("Pool.Cap() = %v, want %v", p.Cap(), DefaultCapacity)
 		}
@@ -95,7 +95,7 @@ func TestNewWithConfig(t *testing.T) {
 	t.Run("use user config", func(t *testing.T) {
 		want := 10000
 		p := New(Config{want, time.Second * 1, DefaultMiniCleanupTime})
-		defer p.Close(true)
+		defer p.CloseGrace()
 		if p.Cap() != want {
 			t.Errorf("Pool.Cap() = %v, want %v", p.Cap(), want)
 		}
@@ -112,7 +112,7 @@ func TestNewWithConfig(t *testing.T) {
 func TestWithWork(t *testing.T) {
 	t.Run("invalid function task", func(t *testing.T) {
 		p := New()
-		defer p.Close(true)
+		defer p.CloseGrace()
 		err := p.Submit(nil, 1)
 		if err == nil {
 			t.Errorf("Pool.Submit() Err = %v, want %v", err, ErrInvalidFunc)
@@ -121,7 +121,7 @@ func TestWithWork(t *testing.T) {
 
 	t.Run("do task when pool is closed", func(t *testing.T) {
 		p := New()
-		p.Close(true)
+		p.CloseGrace()
 		time.Sleep(200 * time.Millisecond)
 		err := p.Submit(poolFunc, 1)
 		if err == nil {
@@ -131,7 +131,7 @@ func TestWithWork(t *testing.T) {
 
 	t.Run("check pool parameters", func(t *testing.T) {
 		p := New()
-		defer p.Close(true)
+		defer p.CloseGrace()
 		err := p.Submit(poolFunc, 1)
 		if err != nil {
 			t.Errorf("Pool.Submit() Err = %v, want %v", err, nil)
@@ -183,8 +183,8 @@ func TestWithWork(t *testing.T) {
 		_ = p.Submit(poolFunc, 1)
 		time.Sleep(time.Millisecond * 2)
 		_ = p.Submit(poolFunc, 1)
-		p.Close(true)
-		p.Close(true) // close twice
+		p.CloseGrace()
+		p.CloseGrace() // close twice
 		t.Log("all goroutine done")
 		time.Sleep(time.Millisecond * 100)
 		if p.Len() != 0 {
@@ -201,7 +201,7 @@ func TestWithWork(t *testing.T) {
 
 func TestWithFullWork(t *testing.T) {
 	p := New(Config{5, time.Second * 1, DefaultMiniCleanupTime})
-	defer p.Close(true)
+	defer p.CloseGrace()
 	for i := 0; i < 10; i++ {
 		_ = p.Submit(poolFunc, 1)
 	}
@@ -210,7 +210,7 @@ func TestWithFullWork(t *testing.T) {
 
 func TestWithWorkPanic(t *testing.T) {
 	p := New()
-	defer p.Close(true)
+	defer p.CloseGrace()
 	p.SetPanicHandler(func() {
 		t.Log("panic happen")
 	})

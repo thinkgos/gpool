@@ -20,7 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// package gpool Implementing a goroutine pool
+// Package gpool Implementing a goroutine pool
 package gpool
 
 import (
@@ -119,185 +119,195 @@ func New(c ...Config) *Pool {
 	return p
 }
 
-func (this *Pool) cleanUp() {
-	tick := time.NewTimer(this.survivalTime)
+func (sf *Pool) cleanUp() {
+	tick := time.NewTimer(sf.survivalTime)
 	defer tick.Stop()
 
 	for {
 		select {
 		case <-tick.C:
-			nearTimeout := this.survivalTime
+			nearTimeout := sf.survivalTime
 			now := time.Now()
-			this.mux.Lock()
+			sf.mux.Lock()
 			var next *work
-			for e := this.idleGoRoutines.Front(); e != nil; e = next {
-				if nearTimeout = now.Sub(e.markTime); nearTimeout < this.survivalTime {
+			for e := sf.idleGoRoutines.Front(); e != nil; e = next {
+				if nearTimeout = now.Sub(e.markTime); nearTimeout < sf.survivalTime {
 					break
 				}
 				next = e.Next() // save before delete
-				this.idleGoRoutines.remove(e).itm <- item{}
+				sf.idleGoRoutines.remove(e).itm <- item{}
 			}
-			this.mux.Unlock()
-			if nearTimeout < this.miniCleanupTime {
-				nearTimeout = this.miniCleanupTime
+			sf.mux.Unlock()
+			if nearTimeout < sf.miniCleanupTime {
+				nearTimeout = sf.miniCleanupTime
 			}
 			tick.Reset(nearTimeout)
-		case <-this.ctx.Done():
-			this.mux.Lock()
-			for e := this.idleGoRoutines.Front(); e != nil; e = e.Next() {
+		case <-sf.ctx.Done():
+			sf.mux.Lock()
+			for e := sf.idleGoRoutines.Front(); e != nil; e = e.Next() {
 				e.itm <- item{} // give a nil function, make all goroutine exit
 			}
-			this.idleGoRoutines = nil
-			this.mux.Unlock()
+			sf.idleGoRoutines = nil
+			sf.mux.Unlock()
 			return
 		}
 	}
 }
 
 // SetPanicHandler set panic handler
-func (this *Pool) SetPanicHandler(f func()) {
-	this.panicFunc = f
+func (sf *Pool) SetPanicHandler(f func()) {
+	sf.panicFunc = f
 }
 
 // Len returns the currently running goroutines
-func (this *Pool) Len() int {
-	return int(atomic.LoadInt32(&this.running))
+func (sf *Pool) Len() int {
+	return int(atomic.LoadInt32(&sf.running))
 }
 
 // Cap tha capacity of goroutines the pool can create
-func (this *Pool) Cap() int {
-	return int(atomic.LoadInt32(&this.capacity))
+func (sf *Pool) Cap() int {
+	return int(atomic.LoadInt32(&sf.capacity))
 }
 
 // Adjust adjust the capacity of the pools goroutines
-func (this *Pool) Adjust(size int) {
-	if size < 0 || this.Cap() == size {
+func (sf *Pool) Adjust(size int) {
+	if size < 0 || sf.Cap() == size {
 		return
 	}
-	atomic.StoreInt32(&this.capacity, int32(size))
+	atomic.StoreInt32(&sf.capacity, int32(size))
 }
 
 // Free return the available goroutines can create
-func (this *Pool) Free() int {
-	return this.Cap() - this.Len()
+func (sf *Pool) Free() int {
+	return sf.Cap() - sf.Len()
 }
 
 // Idle return the goroutines has running but in idle(no task work)
-func (this *Pool) Idle() int {
+func (sf *Pool) Idle() int {
 	var cnt int
-	this.mux.Lock()
-	if this.idleGoRoutines != nil {
-		cnt = this.idleGoRoutines.Len()
+	sf.mux.Lock()
+	if sf.idleGoRoutines != nil {
+		cnt = sf.idleGoRoutines.Len()
 	}
-	this.mux.Unlock()
+	sf.mux.Unlock()
 	return cnt
 }
 
 // Close the pool,if grace enable util all goroutine close
-func (this *Pool) Close(grace bool) error {
-	if atomic.LoadUint32(&this.closeDone) == closed {
+func (sf *Pool) close(grace bool) error {
+	if atomic.LoadUint32(&sf.closeDone) == closed {
 		return nil
 	}
 
-	this.mux.Lock()
-	if this.closeDone == onWork { // check again,make sure
-		this.cancel()
-		atomic.StoreUint32(&this.closeDone, closed)
+	sf.mux.Lock()
+	if sf.closeDone == onWork { // check again,make sure
+		sf.cancel()
+		atomic.StoreUint32(&sf.closeDone, closed)
 	}
-	this.mux.Unlock()
+	sf.mux.Unlock()
 	if grace {
-		this.wg.Wait()
+		sf.wg.Wait()
 	}
 	return nil
 }
 
+// Close the pool,but not wait all goroutine close
+func (sf *Pool) Close() error {
+	return sf.close(false)
+}
+
+// CloseGrace the pool,wait util all goroutine close
+func (sf *Pool) CloseGrace() error {
+	return sf.close(true)
+}
+
 // Submit submits a task with arg
-func (this *Pool) Submit(f TaskFunc, arg interface{}) error {
+func (sf *Pool) Submit(f TaskFunc, arg interface{}) error {
 	var w *work
 
 	if f == nil {
 		return ErrInvalidFunc
 	}
 
-	if atomic.LoadUint32(&this.closeDone) == closed {
+	if atomic.LoadUint32(&sf.closeDone) == closed {
 		return ErrClosed
 	}
 
-	this.mux.Lock()
-	if this.closeDone == closed || this.idleGoRoutines == nil { // check again,make sure
-		this.mux.Unlock()
+	sf.mux.Lock()
+	if sf.closeDone == closed || sf.idleGoRoutines == nil { // check again,make sure
+		sf.mux.Unlock()
 		return ErrClosed
 	}
 
 	itm := item{f, arg}
-	if w = this.idleGoRoutines.Front(); w != nil {
-		this.idleGoRoutines.Remove(w)
-		this.mux.Unlock()
+	if w = sf.idleGoRoutines.Front(); w != nil {
+		sf.idleGoRoutines.Remove(w)
+		sf.mux.Unlock()
 		w.itm <- itm
 		return nil
 	}
 
 	// actual goroutines maybe greater than cap, when race, but it will overload and return to normal in goroutine
-	if this.Free() > 0 {
-		this.mux.Unlock()
-		w = this.cache.Get().(*work)
+	if sf.Free() > 0 {
+		sf.mux.Unlock()
+		w = sf.cache.Get().(*work)
 		w.run(itm)
 		return nil
 	}
 
 	for {
-		this.cond.Wait()
-		if w = this.idleGoRoutines.Front(); w != nil {
-			this.idleGoRoutines.Remove(w)
+		sf.cond.Wait()
+		if w = sf.idleGoRoutines.Front(); w != nil {
+			sf.idleGoRoutines.Remove(w)
 			break
 		}
 	}
-	this.mux.Unlock()
+	sf.mux.Unlock()
 	w.itm <- itm
 	return nil
 }
 
 // push the running goroutine to idle pool
-func (this *Pool) push(w *work) error {
-	if atomic.LoadUint32(&this.closeDone) == closed { // quick check
+func (sf *Pool) push(w *work) error {
+	if atomic.LoadUint32(&sf.closeDone) == closed { // quick check
 		return ErrClosed
 	}
 
-	if this.Free() < 0 {
+	if sf.Free() < 0 {
 		return ErrOverload
 	}
 
 	w.markTime = time.Now()
-	this.mux.Lock()
-	if this.closeDone == closed { // check again,make sure
-		this.mux.Unlock()
+	sf.mux.Lock()
+	if sf.closeDone == closed { // check again,make sure
+		sf.mux.Unlock()
 		return ErrClosed
 	}
-	this.idleGoRoutines.PushBack(w)
-	this.cond.Signal()
-	this.mux.Unlock()
+	sf.idleGoRoutines.PushBack(w)
+	sf.cond.Signal()
+	sf.mux.Unlock()
 	return nil
 }
 
-func (this *work) run(itm item) {
-	this.pool.wg.Add(1)
-	atomic.AddInt32(&this.pool.running, 1)
+func (sf *work) run(itm item) {
+	sf.pool.wg.Add(1)
+	atomic.AddInt32(&sf.pool.running, 1)
 	go func() {
 		defer func() {
-			this.pool.wg.Done()
-			atomic.AddInt32(&this.pool.running, -1)
-			this.pool.cache.Put(this)
-			if r := recover(); r != nil && this.pool.panicFunc != nil {
-				this.pool.panicFunc()
+			sf.pool.wg.Done()
+			atomic.AddInt32(&sf.pool.running, -1)
+			sf.pool.cache.Put(sf)
+			if r := recover(); r != nil && sf.pool.panicFunc != nil {
+				sf.pool.panicFunc()
 			}
 		}()
 
 		for {
 			itm.task(itm.arg)
-			if this.pool.push(this) != nil {
+			if sf.pool.push(sf) != nil {
 				return
 			}
-			if itm = <-this.itm; itm.task == nil {
+			if itm = <-sf.itm; itm.task == nil {
 				return
 			}
 		}
