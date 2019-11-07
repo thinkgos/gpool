@@ -113,7 +113,7 @@ func New(c ...Config) *Pool {
 	}
 	p.cond = sync.NewCond(&p.mux)
 	p.cache = &sync.Pool{
-		New: func() interface{} { return &work{itm: make(chan TaskFunc, 1), pool: p} },
+		New: func() interface{} { return &work{task: make(chan TaskFunc, 1), pool: p} },
 	}
 	go p.cleanUp()
 	return p
@@ -135,7 +135,7 @@ func (sf *Pool) cleanUp() {
 					break
 				}
 				next = e.Next() // save before delete
-				sf.idleGoRoutines.remove(e).itm <- nil
+				sf.idleGoRoutines.remove(e).task <- nil
 			}
 			sf.mux.Unlock()
 			if nearTimeout < sf.miniCleanupTime {
@@ -145,7 +145,7 @@ func (sf *Pool) cleanUp() {
 		case <-sf.ctx.Done():
 			sf.mux.Lock()
 			for e := sf.idleGoRoutines.Front(); e != nil; e = e.Next() {
-				e.itm <- nil // give a nil function, make all goroutine exit
+				e.task <- nil // give a nil function, make all goroutine exit
 			}
 			sf.idleGoRoutines = nil
 			sf.mux.Unlock()
@@ -242,7 +242,7 @@ func (sf *Pool) Submit(f TaskFunc) error {
 	if w = sf.idleGoRoutines.Front(); w != nil {
 		sf.idleGoRoutines.Remove(w)
 		sf.mux.Unlock()
-		w.itm <- f
+		w.task <- f
 		return nil
 	}
 
@@ -250,7 +250,8 @@ func (sf *Pool) Submit(f TaskFunc) error {
 	if sf.Free() > 0 {
 		sf.mux.Unlock()
 		w = sf.cache.Get().(*work)
-		w.run(f)
+		w.task <- f
+		w.run()
 		return nil
 	}
 
@@ -262,7 +263,7 @@ func (sf *Pool) Submit(f TaskFunc) error {
 		}
 	}
 	sf.mux.Unlock()
-	w.itm <- f
+	w.task <- f
 	return nil
 }
 
@@ -288,7 +289,7 @@ func (sf *Pool) push(w *work) error {
 	return nil
 }
 
-func (sf *work) run(f TaskFunc) {
+func (sf *work) run() {
 	sf.pool.wg.Add(1)
 	atomic.AddInt32(&sf.pool.running, 1)
 	go func() {
@@ -301,12 +302,12 @@ func (sf *work) run(f TaskFunc) {
 			}
 		}()
 
-		for {
-			f()
-			if sf.pool.push(sf) != nil {
+		for f := range sf.task {
+			if f == nil {
 				return
 			}
-			if f = <-sf.itm; f == nil {
+			f()
+			if sf.pool.push(sf) != nil {
 				return
 			}
 		}

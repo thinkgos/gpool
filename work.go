@@ -35,8 +35,8 @@ type work struct {
 	// The value stored
 	// pool who owns this worker.
 	pool *Pool
-	// itm is a time with task and it's arg should be done.
-	itm chan TaskFunc
+	// task is a time with task and it's arg should be done.
+	task chan TaskFunc
 	// markTime mark when coroutine begin in idle
 	markTime time.Time
 }
