@@ -35,7 +35,8 @@ import (
 const (
 	DefaultCapacity        = 100000
 	DefaultSurvivalTime    = 1 * time.Second
-	DefaultMiniCleanupTime = 100 * time.Millisecond
+	DefaultCleanupTime     = 10 * time.Second
+	defaultMiniCleanupTime = 100 * time.Millisecond
 )
 
 // define pool state
@@ -47,14 +48,13 @@ const (
 var (
 	// ErrClosed indicate the pool has closed
 	ErrClosed = errors.New("pool has closed")
-	// ErrInvalidFunc indicate the task function is invalid
-	ErrInvalidFunc = errors.New("invalid function, must not be nil")
+	// ErrInvalidTaskFunc indicate the task function is invalid
+	ErrInvalidTaskFunc = errors.New("invalid function, must be not nil")
 	// ErrOverload indicate the goroutine overload
 	ErrOverload = errors.New("pool overload")
+	// ErrInvalidTask indicate the task is invalid
+	ErrInvalidTask = errors.New("invalid task, must be not nil")
 )
-
-// TaskFunc task function define
-type TaskFunc func()
 
 // Config the pool config parameter
 type Config struct {
@@ -90,14 +90,14 @@ func New(c ...Config) *Pool {
 		c = append(c, Config{
 			Capacity:        DefaultCapacity,
 			SurvivalTime:    DefaultSurvivalTime,
-			MiniCleanupTime: DefaultMiniCleanupTime,
+			MiniCleanupTime: DefaultCleanupTime,
 		})
 	}
 	if c[0].Capacity < 0 {
 		c[0].Capacity = DefaultCapacity
 	}
-	if c[0].MiniCleanupTime < DefaultMiniCleanupTime {
-		c[0].MiniCleanupTime = DefaultMiniCleanupTime
+	if c[0].MiniCleanupTime < defaultMiniCleanupTime {
+		c[0].MiniCleanupTime = defaultMiniCleanupTime
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -113,7 +113,7 @@ func New(c ...Config) *Pool {
 	}
 	p.cond = sync.NewCond(&p.mux)
 	p.cache = &sync.Pool{
-		New: func() interface{} { return &work{task: make(chan TaskFunc, 1), pool: p} },
+		New: func() interface{} { return &work{task: make(chan Task, 1), pool: p} },
 	}
 	go p.cleanUp()
 	return p
@@ -221,12 +221,20 @@ func (sf *Pool) CloseGrace() error {
 	return sf.close(true)
 }
 
-// Submit submits a task with arg
-func (sf *Pool) Submit(f TaskFunc) error {
+// SubmitFunc submits a task function
+func (sf *Pool) SubmitFunc(f TaskFunc) error {
+	if f == nil {
+		return ErrInvalidTaskFunc
+	}
+	return sf.Submit(f)
+}
+
+// Submit submit a task
+func (sf *Pool) Submit(job Task) error {
 	var w *work
 
-	if f == nil {
-		return ErrInvalidFunc
+	if job == nil {
+		return ErrInvalidTask
 	}
 
 	if atomic.LoadUint32(&sf.closeDone) == closed {
@@ -242,7 +250,7 @@ func (sf *Pool) Submit(f TaskFunc) error {
 	if w = sf.idleGoRoutines.Front(); w != nil {
 		sf.idleGoRoutines.Remove(w)
 		sf.mux.Unlock()
-		w.task <- f
+		w.task <- job
 		return nil
 	}
 
@@ -250,7 +258,7 @@ func (sf *Pool) Submit(f TaskFunc) error {
 	if sf.Free() > 0 {
 		sf.mux.Unlock()
 		w = sf.cache.Get().(*work)
-		w.task <- f
+		w.task <- job
 		w.run()
 		return nil
 	}
@@ -263,7 +271,7 @@ func (sf *Pool) Submit(f TaskFunc) error {
 		}
 	}
 	sf.mux.Unlock()
-	w.task <- f
+	w.task <- job
 	return nil
 }
 
@@ -306,7 +314,7 @@ func (sf *work) run() {
 			if f == nil {
 				return
 			}
-			f()
+			f.Run()
 			if sf.pool.push(sf) != nil {
 				return
 			}
