@@ -33,33 +33,25 @@ const (
 	benchPoolCap = 200000
 )
 
-type task struct {
-	args int
-}
-
-func (sf task) poolFunc() {
-	time.Sleep(time.Duration(sf.args) * time.Millisecond)
+func poolFunc() {
+	time.Sleep(benchParam * time.Millisecond)
 }
 
 func BenchmarkGoroutineUnlimit(b *testing.B) {
-	tsk := task{benchParam}
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < benchRunCnt; j++ {
-			go tsk.poolFunc()
+			go poolFunc()
 		}
 	}
 }
 
 func BenchmarkPoolUnlimit(b *testing.B) {
-	p := New(Config{benchPoolCap, time.Second * 1, time.Second * 10})
+	p := New(Config{benchPoolCap, time.Second * 10, time.Second * 10})
 	defer p.CloseGrace()
-	tsk := task{benchParam}
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < benchRunCnt; j++ {
-			_ = p.Submit(func() {
-				tsk.poolFunc()
-			})
+			_ = p.Submit(poolFunc)
 		}
 	}
 	b.StopTimer()
@@ -127,9 +119,8 @@ func TestWithWork(t *testing.T) {
 	t.Run("do task when pool is closed", func(t *testing.T) {
 		p := New()
 		p.CloseGrace()
-		tsk := task{1}
 		time.Sleep(200 * time.Millisecond)
-		err := p.Submit(tsk.poolFunc)
+		err := p.Submit(poolFunc)
 		if err == nil {
 			t.Errorf("Pool.Submit() Err = %v, want %v", err, ErrClosed)
 		}
@@ -138,13 +129,12 @@ func TestWithWork(t *testing.T) {
 	t.Run("check pool parameters", func(t *testing.T) {
 		p := New()
 		defer p.CloseGrace()
-		tsk := task{1}
-		err := p.Submit(tsk.poolFunc)
+		err := p.Submit(poolFunc)
 		if err != nil {
 			t.Errorf("Pool.Submit() Err = %v, want %v", err, nil)
 		}
-		_ = p.Submit(tsk.poolFunc)
-		_ = p.Submit(tsk.poolFunc)
+		_ = p.Submit(poolFunc)
+		_ = p.Submit(poolFunc)
 		if p.Cap() != DefaultCapacity {
 			t.Errorf("Pool.Cap() = %v, want %v", p.Cap(), DefaultCapacity)
 		}
@@ -159,7 +149,7 @@ func TestWithWork(t *testing.T) {
 		}
 
 		t.Log("task done then pool collect idle goroutine")
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(11 * time.Millisecond)
 		if p.Idle() != 3 {
 			t.Errorf("Pool.Idle() = %v, want %v", p.Idle(), 3)
 		}
@@ -185,11 +175,10 @@ func TestWithWork(t *testing.T) {
 
 	t.Run("close by user", func(t *testing.T) {
 		p := New()
-		tsk := task{1}
-		_ = p.Submit(tsk.poolFunc)
-		_ = p.Submit(tsk.poolFunc)
+		_ = p.Submit(poolFunc)
+		_ = p.Submit(poolFunc)
 		time.Sleep(time.Millisecond * 2)
-		_ = p.Submit(tsk.poolFunc)
+		_ = p.Submit(poolFunc)
 		p.CloseGrace()
 		p.CloseGrace() // close twice
 		t.Log("all goroutine done")
@@ -209,9 +198,8 @@ func TestWithWork(t *testing.T) {
 func TestWithFullWork(t *testing.T) {
 	p := New(Config{5, time.Second * 1, DefaultMiniCleanupTime})
 	defer p.CloseGrace()
-	tsk := task{1}
 	for i := 0; i < 10; i++ {
-		_ = p.Submit(tsk.poolFunc)
+		_ = p.Submit(poolFunc)
 	}
 	t.Log("pool full then wait for idle goroutine")
 }
