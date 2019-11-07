@@ -54,7 +54,7 @@ var (
 )
 
 // TaskFunc task function define
-type TaskFunc func(arg interface{})
+type TaskFunc func()
 
 // Config the pool config parameter
 type Config struct {
@@ -113,7 +113,7 @@ func New(c ...Config) *Pool {
 	}
 	p.cond = sync.NewCond(&p.mux)
 	p.cache = &sync.Pool{
-		New: func() interface{} { return &work{itm: make(chan item, 1), pool: p} },
+		New: func() interface{} { return &work{itm: make(chan TaskFunc, 1), pool: p} },
 	}
 	go p.cleanUp()
 	return p
@@ -135,7 +135,7 @@ func (sf *Pool) cleanUp() {
 					break
 				}
 				next = e.Next() // save before delete
-				sf.idleGoRoutines.remove(e).itm <- item{}
+				sf.idleGoRoutines.remove(e).itm <- nil
 			}
 			sf.mux.Unlock()
 			if nearTimeout < sf.miniCleanupTime {
@@ -145,7 +145,7 @@ func (sf *Pool) cleanUp() {
 		case <-sf.ctx.Done():
 			sf.mux.Lock()
 			for e := sf.idleGoRoutines.Front(); e != nil; e = e.Next() {
-				e.itm <- item{} // give a nil function, make all goroutine exit
+				e.itm <- nil // give a nil function, make all goroutine exit
 			}
 			sf.idleGoRoutines = nil
 			sf.mux.Unlock()
@@ -222,7 +222,7 @@ func (sf *Pool) CloseGrace() error {
 }
 
 // Submit submits a task with arg
-func (sf *Pool) Submit(f TaskFunc, arg interface{}) error {
+func (sf *Pool) Submit(f TaskFunc) error {
 	var w *work
 
 	if f == nil {
@@ -239,11 +239,10 @@ func (sf *Pool) Submit(f TaskFunc, arg interface{}) error {
 		return ErrClosed
 	}
 
-	itm := item{f, arg}
 	if w = sf.idleGoRoutines.Front(); w != nil {
 		sf.idleGoRoutines.Remove(w)
 		sf.mux.Unlock()
-		w.itm <- itm
+		w.itm <- f
 		return nil
 	}
 
@@ -251,7 +250,7 @@ func (sf *Pool) Submit(f TaskFunc, arg interface{}) error {
 	if sf.Free() > 0 {
 		sf.mux.Unlock()
 		w = sf.cache.Get().(*work)
-		w.run(itm)
+		w.run(f)
 		return nil
 	}
 
@@ -263,7 +262,7 @@ func (sf *Pool) Submit(f TaskFunc, arg interface{}) error {
 		}
 	}
 	sf.mux.Unlock()
-	w.itm <- itm
+	w.itm <- f
 	return nil
 }
 
@@ -289,7 +288,7 @@ func (sf *Pool) push(w *work) error {
 	return nil
 }
 
-func (sf *work) run(itm item) {
+func (sf *work) run(f TaskFunc) {
 	sf.pool.wg.Add(1)
 	atomic.AddInt32(&sf.pool.running, 1)
 	go func() {
@@ -303,11 +302,11 @@ func (sf *work) run(itm item) {
 		}()
 
 		for {
-			itm.task(itm.arg)
+			f()
 			if sf.pool.push(sf) != nil {
 				return
 			}
-			if itm = <-sf.itm; itm.task == nil {
+			if f = <-sf.itm; f == nil {
 				return
 			}
 		}

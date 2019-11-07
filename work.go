@@ -26,11 +26,6 @@ import (
 	"time"
 )
 
-type item struct {
-	task TaskFunc
-	arg  interface{}
-}
-
 // work is an element of a linked list.
 type work struct {
 	// fot list
@@ -41,7 +36,7 @@ type work struct {
 	// pool who owns this worker.
 	pool *Pool
 	// itm is a time with task and it's arg should be done.
-	itm chan item
+	itm chan TaskFunc
 	// markTime mark when coroutine begin in idle
 	markTime time.Time
 }
