@@ -33,10 +33,10 @@ import (
 
 // default config parameter
 const (
-	DefaultCapacity        = 100000
-	DefaultSurvivalTime    = 1 * time.Second
-	DefaultCleanupTime     = 10 * time.Second
-	defaultMiniCleanupTime = 100 * time.Millisecond
+	DefaultCapacity     = 100000
+	DefaultSurvivalTime = 1 * time.Second
+	DefaultCleanupTime  = 10 * time.Second
+	miniCleanupTime     = 100 * time.Millisecond
 )
 
 // define pool state
@@ -55,13 +55,6 @@ var (
 	// ErrInvalidTask indicate the task is invalid
 	ErrInvalidTask = errors.New("invalid task, must be not nil")
 )
-
-// Config the pool config parameter
-type Config struct {
-	Capacity        int
-	SurvivalTime    time.Duration
-	MiniCleanupTime time.Duration // mini cleanup time
-}
 
 // Pool the goroutine pool
 type Pool struct {
@@ -85,29 +78,15 @@ type Pool struct {
 }
 
 // New new a pool with the config if there is ,other use default config
-func New(c ...Config) *Pool {
-	if len(c) == 0 {
-		c = append(c, Config{
-			Capacity:        DefaultCapacity,
-			SurvivalTime:    DefaultSurvivalTime,
-			MiniCleanupTime: DefaultCleanupTime,
-		})
-	}
-	if c[0].Capacity < 0 {
-		c[0].Capacity = DefaultCapacity
-	}
-	if c[0].MiniCleanupTime < defaultMiniCleanupTime {
-		c[0].MiniCleanupTime = defaultMiniCleanupTime
-	}
-
+func New(opt ...Option) *Pool {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Pool{
 		ctx:    ctx,
 		cancel: cancel,
 
-		capacity:        int32(c[0].Capacity),
-		survivalTime:    c[0].SurvivalTime,
-		miniCleanupTime: c[0].MiniCleanupTime,
+		capacity:        DefaultCapacity,
+		survivalTime:    DefaultSurvivalTime,
+		miniCleanupTime: DefaultCleanupTime,
 
 		idleGoRoutines: newList(),
 	}
@@ -115,6 +94,18 @@ func New(c ...Config) *Pool {
 	p.cache = &sync.Pool{
 		New: func() interface{} { return &work{task: make(chan Task, 1), pool: p} },
 	}
+
+	for _, f := range opt {
+		f(p)
+	}
+
+	if p.capacity < 0 {
+		p.capacity = DefaultCapacity
+	}
+	if p.miniCleanupTime < miniCleanupTime {
+		p.miniCleanupTime = miniCleanupTime
+	}
+
 	go p.cleanUp()
 	return p
 }
