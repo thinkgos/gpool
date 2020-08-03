@@ -4,27 +4,24 @@ import (
 	"time"
 )
 
+// Option pool opton
 type Option func(pool *Pool)
 
-//// Config the pool config parameter
-//type Config struct {
-//	Capacity        int
-//	SurvivalTime    time.Duration
-//	MiniCleanupTime time.Duration // mini cleanup time
-//}
-
+// WithCapacity set goroutines capacity
 func WithCapacity(cap int32) Option {
 	return func(pool *Pool) {
 		pool.capacity = cap
 	}
 }
 
+// WithSurvivalTime set goroutines survival time
 func WithSurvivalTime(t time.Duration) Option {
 	return func(pool *Pool) {
 		pool.survivalTime = t
 	}
 }
 
+// WithMiniCleanupTime set min clean up time
 func WithMiniCleanupTime(t time.Duration) Option {
 	return func(pool *Pool) {
 		pool.miniCleanupTime = t

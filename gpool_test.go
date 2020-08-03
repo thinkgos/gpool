@@ -198,7 +198,8 @@ func TestWithWork(t *testing.T) {
 		time.Sleep(time.Millisecond * 2)
 		_ = p.SubmitFunc(poolFunc)
 		p.CloseGrace() // nolint: errcheck
-		p.CloseGrace() // nolint: errcheck close twice
+		//  close twice
+		p.CloseGrace() // nolint: errcheck
 		t.Log("all goroutine done")
 		time.Sleep(time.Millisecond * 100)
 		if p.Len() != 0 {
