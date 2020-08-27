@@ -1,6 +1,5 @@
 language: go
 
-go:
 matrix:
   fast_finish: true
   include:
@@ -16,7 +15,7 @@ matrix:
 before_install:
   - go get -v ./...
 
-install: 
+install:
 #  - go test -v -benchmem -bench . -coverprofile=coverage.txt -covermode=atomic
   - go test -race -v -coverprofile=coverage.txt -covermode=atomic
 after_success:
