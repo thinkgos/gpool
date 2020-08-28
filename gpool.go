@@ -35,8 +35,6 @@ import (
 const (
 	DefaultCapacity     = 100000
 	DefaultSurvivalTime = 1 * time.Second
-	DefaultCleanupTime  = 10 * time.Second
-	miniCleanupTime     = 100 * time.Millisecond
 )
 
 // define pool state
@@ -61,16 +59,15 @@ type Pool struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	capacity        int32 // goroutines capacity
-	running         int32 // goroutines running count
-	survivalTime    time.Duration
-	miniCleanupTime time.Duration // mini cleanup time
+	capacity     int32 // goroutines capacity
+	running      int32 // goroutines running count
+	survivalTime time.Duration
 
-	closeDone uint32
-
+	// follow should hold lock
 	mux            sync.Mutex
+	closeDone      uint32
 	cond           *sync.Cond
-	idleGoRoutines *list // idle go routine list
+	idleGoRoutines *idleQueue // idle go routine list
 	cache          *sync.Pool
 	wg             sync.WaitGroup
 
@@ -78,32 +75,31 @@ type Pool struct {
 }
 
 // New new a pool with the config if there is ,other use default config
-func New(opt ...Option) *Pool {
+func New(opts ...Option) *Pool {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Pool{
 		ctx:    ctx,
 		cancel: cancel,
 
-		capacity:        DefaultCapacity,
-		survivalTime:    DefaultSurvivalTime,
-		miniCleanupTime: DefaultCleanupTime,
+		capacity:     DefaultCapacity,
+		survivalTime: DefaultSurvivalTime,
 
-		idleGoRoutines: newList(),
+		idleGoRoutines: NewQuickQueue(),
 	}
 	p.cond = sync.NewCond(&p.mux)
 	p.cache = &sync.Pool{
-		New: func() interface{} { return &work{task: make(chan Task, 1), pool: p} },
+		New: func() interface{} { return &goWork{task: make(chan Task, 1), pool: p} },
 	}
 
-	for _, f := range opt {
-		f(p)
+	for _, opt := range opts {
+		opt(p)
 	}
 
 	if p.capacity < 0 {
 		p.capacity = DefaultCapacity
 	}
-	if p.miniCleanupTime < miniCleanupTime {
-		p.miniCleanupTime = miniCleanupTime
+	if p.survivalTime <= 0 {
+		p.survivalTime = DefaultSurvivalTime
 	}
 
 	go p.cleanUp()
@@ -111,34 +107,18 @@ func New(opt ...Option) *Pool {
 }
 
 func (sf *Pool) cleanUp() {
-	tick := time.NewTimer(sf.survivalTime)
+	tick := time.NewTicker(sf.survivalTime)
 	defer tick.Stop()
 
 	for {
 		select {
 		case <-tick.C:
-			nearTimeout := sf.survivalTime
-			now := time.Now()
 			sf.mux.Lock()
-			var next *work
-			for e := sf.idleGoRoutines.Front(); e != nil; e = next {
-				if nearTimeout = now.Sub(e.markTime); nearTimeout < sf.survivalTime {
-					break
-				}
-				next = e.Next() // save before delete
-				sf.idleGoRoutines.remove(e).task <- nil
-			}
+			sf.idleGoRoutines.retrieveExpiry(sf.survivalTime)
 			sf.mux.Unlock()
-			if nearTimeout < sf.miniCleanupTime {
-				nearTimeout = sf.miniCleanupTime
-			}
-			tick.Reset(nearTimeout)
 		case <-sf.ctx.Done():
 			sf.mux.Lock()
-			for e := sf.idleGoRoutines.Front(); e != nil; e = e.Next() {
-				e.task <- nil // give a nil function, make all goroutine exit
-			}
-			sf.idleGoRoutines = nil
+			sf.idleGoRoutines.reset()
 			sf.mux.Unlock()
 			return
 		}
@@ -151,14 +131,10 @@ func (sf *Pool) SetPanicHandler(f func()) {
 }
 
 // Len returns the currently running goroutines
-func (sf *Pool) Len() int {
-	return int(atomic.LoadInt32(&sf.running))
-}
+func (sf *Pool) Len() int { return int(atomic.LoadInt32(&sf.running)) }
 
 // Cap tha capacity of goroutines the pool can create
-func (sf *Pool) Cap() int {
-	return int(atomic.LoadInt32(&sf.capacity))
-}
+func (sf *Pool) Cap() int { return int(atomic.LoadInt32(&sf.capacity)) }
 
 // Adjust adjust the capacity of the pools goroutines
 func (sf *Pool) Adjust(size int) {
@@ -169,16 +145,14 @@ func (sf *Pool) Adjust(size int) {
 }
 
 // Free return the available goroutines can create
-func (sf *Pool) Free() int {
-	return sf.Cap() - sf.Len()
-}
+func (sf *Pool) Free() int { return sf.Cap() - sf.Len() }
 
 // Idle return the goroutines has running but in idle(no task work)
 func (sf *Pool) Idle() int {
 	var cnt int
 	sf.mux.Lock()
 	if sf.idleGoRoutines != nil {
-		cnt = sf.idleGoRoutines.Len()
+		cnt = sf.idleGoRoutines.len()
 	}
 	sf.mux.Unlock()
 	return cnt
@@ -222,7 +196,7 @@ func (sf *Pool) SubmitFunc(f TaskFunc) error {
 
 // Submit submit a task
 func (sf *Pool) Submit(job Task) error {
-	var w *work
+	var w *goWork
 
 	if job == nil {
 		return ErrInvalidTask
@@ -238,8 +212,7 @@ func (sf *Pool) Submit(job Task) error {
 		return ErrClosed
 	}
 
-	if w = sf.idleGoRoutines.Front(); w != nil {
-		sf.idleGoRoutines.Remove(w)
+	if w = sf.idleGoRoutines.poll(); w != nil {
 		sf.mux.Unlock()
 		w.task <- job
 		return nil
@@ -248,7 +221,7 @@ func (sf *Pool) Submit(job Task) error {
 	// actual goroutines maybe greater than cap, when race, but it will overload and return to normal in goroutine
 	if sf.Free() > 0 {
 		sf.mux.Unlock()
-		w = sf.cache.Get().(*work)
+		w = sf.cache.Get().(*goWork)
 		w.task <- job
 		w.run()
 		return nil
@@ -256,8 +229,7 @@ func (sf *Pool) Submit(job Task) error {
 
 	for {
 		sf.cond.Wait()
-		if w = sf.idleGoRoutines.Front(); w != nil {
-			sf.idleGoRoutines.Remove(w)
+		if w = sf.idleGoRoutines.poll(); w != nil {
 			break
 		}
 	}
@@ -267,7 +239,7 @@ func (sf *Pool) Submit(job Task) error {
 }
 
 // push the running goroutine to idle pool
-func (sf *Pool) push(w *work) error {
+func (sf *Pool) push(w *goWork) error {
 	if atomic.LoadUint32(&sf.closeDone) == closed { // quick check
 		return ErrClosed
 	}
@@ -282,13 +254,14 @@ func (sf *Pool) push(w *work) error {
 		sf.mux.Unlock()
 		return ErrClosed
 	}
-	sf.idleGoRoutines.PushBack(w)
+
+	sf.idleGoRoutines.insert(w)
 	sf.cond.Signal()
 	sf.mux.Unlock()
 	return nil
 }
 
-func (sf *work) run() {
+func (sf *goWork) run() {
 	sf.pool.wg.Add(1)
 	atomic.AddInt32(&sf.pool.running, 1)
 	go func() {

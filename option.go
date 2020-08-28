@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// Option pool opton
+// Option pool option
 type Option func(pool *Pool)
 
 // WithCapacity set goroutines capacity
@@ -18,12 +18,5 @@ func WithCapacity(cap int32) Option {
 func WithSurvivalTime(t time.Duration) Option {
 	return func(pool *Pool) {
 		pool.survivalTime = t
-	}
-}
-
-// WithMiniCleanupTime set min clean up time
-func WithMiniCleanupTime(t time.Duration) Option {
-	return func(pool *Pool) {
-		pool.miniCleanupTime = t
 	}
 }

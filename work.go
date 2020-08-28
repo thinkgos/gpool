@@ -26,13 +26,7 @@ import (
 	"time"
 )
 
-// work is an element of a linked list.
-type work struct {
-	// fot list
-	next, prev *work
-	list       *list
-
-	// The value stored
+type goWork struct {
 	// pool who owns this worker.
 	pool *Pool
 	// task is user's task
@@ -41,98 +35,64 @@ type work struct {
 	markTime time.Time
 }
 
-// Next returns the next list element or nil.
-func (sf *work) Next() *work {
-	if p := sf.next; sf.list != nil && p != &sf.list.root {
-		return p
+// idleQueue implement with slice
+type idleQueue struct {
+	headPos int
+	head    []*goWork
+	tail    []*goWork
+}
+
+func NewQuickQueue() *idleQueue {
+	return new(idleQueue)
+}
+
+// Len returns the length of this queue.
+func (sf *idleQueue) len() int { return len(sf.head) - sf.headPos + len(sf.tail) }
+
+// Add items to the queue
+func (sf *idleQueue) insert(v *goWork) { sf.tail = append(sf.tail, v) }
+
+// Poll retrieves and removes the head of the this Queue, or return nil if this Queue is empty.
+func (sf *idleQueue) poll() *goWork {
+	if sf.headPos >= len(sf.head) {
+		if len(sf.tail) == 0 {
+			return nil
+		}
+		// Pick up tail as new head, clear tail.
+		sf.head, sf.headPos, sf.tail = sf.tail, 0, sf.head[:0]
 	}
-	return nil
+	v := sf.head[sf.headPos]
+	sf.head[sf.headPos] = nil // should set nil for gc
+	sf.headPos++
+	return v
 }
 
-// Prev returns the previous list element or nil.
-//func (this *work) Prev() *work {
-//	if p := this.prev; this.list != nil && p != &this.list.root {
-//		return p
-//	}
-//	return nil
-//}
-
-// list represents a doubly linked list.
-type list struct {
-	root   work // sentinel list element, only &root, root.prev, and root.next are used
-	length int  // current list length excluding (this) sentinel element
-}
-
-// newList returns an initialized list.
-func newList() *list {
-	l := &list{length: 0}
-	l.root.next = &l.root
-	l.root.prev = &l.root
-	return l
-}
-
-// len returns the number of elements of list l.
-// The complexity is O(1).
-func (l *list) Len() int {
-	return l.length
-}
-
-// Front returns the first element of list l or nil if the list is empty.
-func (l *list) Front() *work {
-	if l.length == 0 {
-		return nil
+func (sf *idleQueue) retrieveExpiry(survival time.Duration) {
+	f := func() {
+		now := time.Now()
+		for i := sf.headPos; i < len(sf.head); i++ {
+			if now.Sub(sf.head[i].markTime) < survival {
+				break
+			}
+			sf.head[i].task <- nil
+			sf.headPos++
+		}
 	}
-	return l.root.next
-}
-
-// Back returns the last element of list l or nil if the list is empty.
-//func (l *list) Back() *work {
-//	if l.length == 0 {
-//		return nil
-//	}
-//	return l.root.prev
-//}
-
-// insert inserts this after at, increments l.length, and returns this.
-func (l *list) insert(this, at *work) *work {
-	n := at.next
-	at.next = this
-	this.prev = at
-	this.next = n
-	n.prev = this
-	this.list = l
-	l.length++
-	return this
-}
-
-// remove removes this from its list, decrements l.length, and returns this.
-func (l *list) remove(this *work) *work {
-	this.prev.next = this.next
-	this.next.prev = this.prev
-	this.next = nil // avoid memory leaks
-	this.prev = nil // avoid memory leaks
-	this.list = nil
-	l.length--
-	return this
-}
-
-// Remove removes this from l if this is an element of list l.
-// The element must not be nil.
-func (l *list) Remove(this *work) *work {
-	if this.list == l {
-		// if this.list == l, l must have been initialized when this was inserted
-		// in l or l == nil (this is a zero Element) and l.remove will crash
-		l.remove(this)
+	f()
+	if sf.headPos >= len(sf.head) {
+		// Pick up tail as new head, clear tail.
+		sf.head, sf.headPos, sf.tail = sf.tail, 0, sf.head[:0]
+		f()
 	}
-	return this
 }
 
-// PushFront inserts a new element at the front of list l and returns this.
-//func (l *list) PushFront(this *work) *work {
-//	return l.insert(this, &l.root)
-//}
+func (sf *idleQueue) reset() {
+	for i := sf.headPos; i < len(sf.head); i++ {
+		sf.head[i].task <- nil
+	}
 
-// PushBack inserts a new element at the back of list l and returns this.
-func (l *list) PushBack(this *work) *work {
-	return l.insert(this, l.root.prev)
+	for i := 0; i < len(sf.tail); i++ {
+		sf.tail[i].task <- nil
+	}
+	sf.head, sf.tail, sf.headPos = nil, nil, 0
 }

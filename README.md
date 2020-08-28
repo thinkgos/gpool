@@ -1,11 +1,15 @@
+## gpool
+goroutine pool package
+
 [![GoDoc](https://godoc.org/github.com/thinkgos/gpool?status.svg)](https://godoc.org/github.com/thinkgos/gpool)
-[![Build Status](https://travis-ci.org/thinkgos/gpool.svg?branch=master)](https://travis-ci.org/thinkgos/gpool)
+[![Go.Dev reference](https://img.shields.io/badge/go.dev-reference-blue?logo=go&logoColor=white)](https://pkg.go.dev/github.com/thinkgos/gpool?tab=doc)
+[![Build Status](https://www.travis-ci.org/thinkgos/gpool.svg?branch=master)](https://www.travis-ci.org/thinkgos/gpool)
 [![codecov](https://codecov.io/gh/thinkgos/gpool/branch/master/graph/badge.svg)](https://codecov.io/gh/thinkgos/gpool)
 ![Action Status](https://github.com/thinkgos/gpool/workflows/Go/badge.svg)
 [![Go Report Card](https://goreportcard.com/badge/github.com/thinkgos/gpool)](https://goreportcard.com/report/github.com/thinkgos/gpool)
-[![Licence](https://img.shields.io/github/license/thinkgos/gpool)](https://raw.githubusercontent.com/thinkgos/gpool/master/LICENSE)
-## gpool
-goroutine pool package
+[![License](https://img.shields.io/github/license/thinkgos/gpool)](https://github.com/thinkgos/gpool/raw/master/LICENSE)
+[![Tag](https://img.shields.io/github/v/tag/thinkgos/gpool)](https://github.com/thinkgos/gpool/tags)
+
 
 ## 说明
  - 原来是采用单chan 实现协程池,然后发现性能瓶颈在上万个goroutine在竞争同一个chan,严重影响并发性,

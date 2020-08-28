@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	benchRunCnt  = 1000000
+	benchRunCnt  = 5000000
 	benchParam   = 10
 	benchPoolCap = 200000
 )
@@ -47,8 +47,7 @@ func BenchmarkGoroutineUnlimit(b *testing.B) {
 
 func BenchmarkPoolUnlimit(b *testing.B) {
 	p := New(WithCapacity(benchPoolCap),
-		WithSurvivalTime(time.Second*10),
-		WithMiniCleanupTime(time.Second*10))
+		WithSurvivalTime(time.Second*10))
 	defer p.CloseGrace() // nolint: errcheck
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
@@ -79,8 +78,7 @@ func TestNewWithConfig(t *testing.T) {
 
 	t.Run("invalid config cap use default", func(t *testing.T) {
 		p := New(WithCapacity(-1),
-			WithSurvivalTime(time.Second*1),
-			WithMiniCleanupTime(miniCleanupTime))
+			WithSurvivalTime(time.Second*1))
 		defer p.CloseGrace() // nolint: errcheck
 		if p.Cap() != DefaultCapacity {
 			t.Errorf("Pool.Cap() = %v, want %v", p.Cap(), DefaultCapacity)
@@ -96,8 +94,7 @@ func TestNewWithConfig(t *testing.T) {
 	t.Run("use user config", func(t *testing.T) {
 		want := 10000
 		p := New(WithCapacity(int32(want)),
-			WithSurvivalTime(time.Second*1),
-			WithMiniCleanupTime(miniCleanupTime))
+			WithSurvivalTime(time.Second*1))
 		defer p.CloseGrace() // nolint: errcheck
 		if p.Cap() != want {
 			t.Errorf("Pool.Cap() = %v, want %v", p.Cap(), want)
@@ -144,8 +141,7 @@ func TestWithWork(t *testing.T) {
 	t.Run("check pool parameters", func(t *testing.T) {
 		p := New(
 			WithCapacity(DefaultCapacity),
-			WithSurvivalTime(DefaultSurvivalTime),
-			WithMiniCleanupTime(100*time.Millisecond))
+			WithSurvivalTime(DefaultSurvivalTime))
 		defer p.CloseGrace() // nolint: errcheck
 		err := p.SubmitFunc(poolFunc)
 		if err != nil {
@@ -216,8 +212,7 @@ func TestWithWork(t *testing.T) {
 
 func TestWithFullWork(t *testing.T) {
 	p := New(WithCapacity(5),
-		WithSurvivalTime(time.Second*1),
-		WithMiniCleanupTime(miniCleanupTime))
+		WithSurvivalTime(time.Second*1))
 	defer p.CloseGrace() // nolint: errcheck
 	for i := 0; i < 10; i++ {
 		_ = p.SubmitFunc(poolFunc)
