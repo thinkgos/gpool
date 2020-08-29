@@ -31,30 +31,30 @@ import (
 	"time"
 )
 
-// default config parameter
+// default config parameter.
 const (
 	DefaultCapacity     = 100000
 	DefaultSurvivalTime = 1 * time.Second
 )
 
-// define pool state
+// define pool state.
 const (
 	onWork = iota
 	closed
 )
 
 var (
-	// ErrClosed indicate the pool has closed
+	// ErrClosed indicate the pool has closed.
 	ErrClosed = errors.New("pool has closed")
-	// ErrInvalidTaskFunc indicate the task function is invalid
+	// ErrInvalidTaskFunc indicate the task function is invalid.
 	ErrInvalidTaskFunc = errors.New("invalid function, must be not nil")
-	// ErrOverload indicate the goroutine overload
+	// ErrOverload indicate the goroutine overload.
 	ErrOverload = errors.New("pool overload")
-	// ErrInvalidTask indicate the task is invalid
+	// ErrInvalidTask indicate the task is invalid.
 	ErrInvalidTask = errors.New("invalid task, must be not nil")
 )
 
-// Pool the goroutine pool
+// Pool the goroutine pool.
 type Pool struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -63,7 +63,7 @@ type Pool struct {
 	running      int32 // goroutines running count
 	survivalTime time.Duration
 
-	// follow should hold lock
+	// follow should hold lock.
 	mux            sync.Mutex
 	closeDone      uint32
 	cond           *sync.Cond
@@ -74,7 +74,7 @@ type Pool struct {
 	panicFunc func()
 }
 
-// New new a pool with the config if there is ,other use default config
+// New new a pool with the config if there is ,other use default config.
 func New(opts ...Option) *Pool {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Pool{
@@ -84,7 +84,7 @@ func New(opts ...Option) *Pool {
 		capacity:     DefaultCapacity,
 		survivalTime: DefaultSurvivalTime,
 
-		idleGoRoutines: NewQuickQueue(),
+		idleGoRoutines: newIdleQueue(),
 	}
 	p.cond = sync.NewCond(&p.mux)
 	p.cache = &sync.Pool{
@@ -125,7 +125,7 @@ func (sf *Pool) cleanUp() {
 	}
 }
 
-// SetPanicHandler set panic handler
+// SetPanicHandler set panic handler.
 func (sf *Pool) SetPanicHandler(f func()) {
 	sf.panicFunc = f
 }
