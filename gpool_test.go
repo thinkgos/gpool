@@ -163,7 +163,7 @@ func TestWithWork(t *testing.T) {
 		}
 
 		t.Log("task done then pool collect idle goroutine")
-		time.Sleep(15 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 		if p.Idle() != 3 {
 			t.Errorf("Pool.Idle() = %v, want %v", p.Idle(), 3)
 		}
