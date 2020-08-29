@@ -42,7 +42,7 @@ type idleQueue struct {
 	tail    []*goWork
 }
 
-func NewQuickQueue() *idleQueue {
+func newIdleQueue() *idleQueue {
 	return new(idleQueue)
 }
 

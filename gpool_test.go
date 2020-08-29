@@ -163,7 +163,7 @@ func TestWithWork(t *testing.T) {
 		}
 
 		t.Log("task done then pool collect idle goroutine")
-		time.Sleep(11 * time.Millisecond)
+		time.Sleep(15 * time.Millisecond)
 		if p.Idle() != 3 {
 			t.Errorf("Pool.Idle() = %v, want %v", p.Idle(), 3)
 		}
@@ -183,7 +183,12 @@ func TestWithWork(t *testing.T) {
 		if p.Cap() != 20000 {
 			t.Errorf("after Pool.Adjust, Pool.Cap() = %v, want %v", p.Idle(), 20000)
 		}
-
+		_ = p.SubmitFunc(poolFunc)
+		_ = p.SubmitFunc(poolFunc)
+		time.Sleep(time.Millisecond * 50)
+		_ = p.SubmitFunc(poolFunc)
+		_ = p.SubmitFunc(poolFunc)
+		time.Sleep(time.Millisecond * 20)
 		p.Adjust(-1) // just for coverage
 	})
 
