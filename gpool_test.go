@@ -61,7 +61,7 @@ func BenchmarkPoolUnlimit(b *testing.B) {
 func TestNewWithConfig(t *testing.T) {
 	t.Run("default config", func(t *testing.T) {
 		p := New()
-		defer p.Close() // nolint: errcheck
+		defer p.Close()
 		if p.Cap() != DefaultCapacity {
 			t.Errorf("Pool.Cap() = %v, want %v", p.Cap(), DefaultCapacity)
 		}
@@ -106,7 +106,6 @@ func TestNewWithConfig(t *testing.T) {
 			t.Errorf("Pool.Free() = %v, want %v", p.Free(), want)
 		}
 	})
-
 }
 
 func TestWithWork(t *testing.T) {

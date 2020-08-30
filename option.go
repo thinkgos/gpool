@@ -8,9 +8,9 @@ import (
 type Option func(pool *Pool)
 
 // WithCapacity set goroutines capacity
-func WithCapacity(cap int32) Option {
+func WithCapacity(capacity int32) Option {
 	return func(pool *Pool) {
-		pool.capacity = cap
+		pool.capacity = capacity
 	}
 }
 

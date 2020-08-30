@@ -187,11 +187,11 @@ func (sf *Pool) CloseGrace() error {
 }
 
 // SubmitFunc submits a task function
-func (sf *Pool) SubmitFunc(f TaskFunc) error {
-	if f == nil {
+func (sf *Pool) SubmitFunc(task TaskFunc) error {
+	if task == nil {
 		return ErrInvalidTaskFunc
 	}
-	return sf.Submit(f)
+	return sf.Submit(task)
 }
 
 // Submit submit a task
