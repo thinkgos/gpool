@@ -24,5 +24,5 @@ goroutine pool package
    原生:   BenchmarkGoroutineUnlimit-8   	       3	 547231063 ns/op	80001594 B/op	 1000011 allocs/op
    协程池: BenchmarkPoolUnlimit-8   	       1	1116941925 ns/op	 8656656 B/op	   61128 allocs/op
    ```
- - 发现有个开源方案,用原生slice实现的,功能更全  
-    see: [ants](https://github.com/panjf2000/ants)
+ - 发现有个开源方案,用原生slice实现的,功能更全,优化更足,建议使用.
+   see: [ants](https://github.com/panjf2000/ants)
