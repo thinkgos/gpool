@@ -81,9 +81,8 @@ func New(opts ...Option) *Pool {
 		ctx:    ctx,
 		cancel: cancel,
 
-		capacity:     DefaultCapacity,
-		survivalTime: DefaultSurvivalTime,
-
+		capacity:       DefaultCapacity,
+		survivalTime:   DefaultSurvivalTime,
 		idleGoRoutines: newIdleQueue(),
 	}
 	p.cond = sync.NewCond(&p.mux)

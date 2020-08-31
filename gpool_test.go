@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	benchRunCnt  = 5000000
+	benchRunCnt  = 1000000
 	benchParam   = 10
 	benchPoolCap = 200000
 )

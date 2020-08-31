@@ -14,15 +14,15 @@ goroutine pool package
 ## 说明
  - 原来是采用单chan 实现协程池,然后发现性能瓶颈在上万个goroutine在竞争同一个chan,严重影响并发性,
  - 改为链表并排序,回收活动但无任务的协程的放在链尾,取任务时取链头,以保证协程池有一定的活动数量.并且每个链表节点都有分配一个为1的chan.性能比单chan提高40%
- - 压力测试条件,电脑4核8G内存ubuntu18.04系统,100W并发任务,每个任务执行10ms,协程池5W个
+ - 压力测试条件,电脑4核8G内存ubuntu18.04系统,100W并发任务,每个任务执行10ms,协程池20W个
    ```
-   原生:   BenchmarkGoroutineUnlimit-8   	       1	1638630994 ns/op	536366136 B/op	 1999667 allocs/op
-   协程池: BenchmarkPoolUnlimit-8   	       2	 816572760 ns/op	 2641588 B/op	   40477 allocs/op
+   原生:   BenchmarkGoroutineUnlimit-8   	       2	 588321422 ns/op	80036632 B/op	 1000365 allocs/op
+   协程池: BenchmarkPoolUnlimit-8   	       2	 746699636 ns/op	 4050860 B/op	   50196 allocs/op
    ```
  - 压力测试条件,电脑4核8G内存ubuntu18.04系统,100W并发任务,每个任务执行10ms,协程池1W个
    ```
-   原生:   BenchmarkGoroutineUnlimit-8   	       1	1638630994 ns/op	536366136 B/op	 1999667 allocs/op
-   协程池: BenchmarkPoolUnlimit-8   	       1	1045529688 ns/op	 7784656 B/op	   57212 allocs/op
+   原生:   BenchmarkGoroutineUnlimit-8   	       3	 547231063 ns/op	80001594 B/op	 1000011 allocs/op
+   协程池: BenchmarkPoolUnlimit-8   	       1	1116941925 ns/op	 8656656 B/op	   61128 allocs/op
    ```
  - 发现有个开源方案,用原生slice实现的,功能更全  
     see: [ants](https://github.com/panjf2000/ants)
