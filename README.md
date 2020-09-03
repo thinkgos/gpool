@@ -1,6 +1,9 @@
 ## gpool
 goroutine pool package
 
+NOTE: archived use [ants](https://github.com/panjf2000/ants) instead.
+
+
 [![GoDoc](https://godoc.org/github.com/thinkgos/gpool?status.svg)](https://godoc.org/github.com/thinkgos/gpool)
 [![Go.Dev reference](https://img.shields.io/badge/go.dev-reference-blue?logo=go&logoColor=white)](https://pkg.go.dev/github.com/thinkgos/gpool?tab=doc)
 [![Build Status](https://www.travis-ci.org/thinkgos/gpool.svg?branch=master)](https://www.travis-ci.org/thinkgos/gpool)
